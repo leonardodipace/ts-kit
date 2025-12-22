@@ -1,0 +1,45 @@
+{
+  "name": "@leonardodipace/kit",
+  "version": "0.1.0",
+  "description": "A TypeScript utility kit",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./errors": {
+      "import": "./dist/lib/errors/index.js",
+      "types": "./dist/lib/errors/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "bun run build",
+    "publish": "npm publish"
+  },
+  "keywords": [
+    "typescript",
+    "utilities",
+    "kit"
+  ],
+  "author": "Leonardo Dipace",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leonardodipace/kit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
