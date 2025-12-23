@@ -14,6 +14,10 @@
     "./errors": {
       "import": "./dist/lib/errors/index.js",
       "types": "./dist/lib/errors/index.d.ts"
+    },
+    "./cache": {
+      "import": "./dist/lib/cache/index.js",
+      "types": "./dist/lib/cache/index.d.ts"
     }
   },
   "files": [
