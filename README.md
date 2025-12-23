@@ -50,10 +50,13 @@ Retrieves a value from the cache. Returns a result tuple with the parsed value o
 const [error, user] = await cache.get('user:123');
 
 if (error) {
-  if (error.type === "NotFoundError") {
-    console.log("Cache miss");
-  } else {
-    console.error("Cache error:", error.message);
+  switch (error.type) {
+    case "NotFoundError":
+      console.log("Cache miss");
+      break;
+    case "CacheError":
+      console.error("Cache error:", error.message);
+      break;
   }
 } else {
   console.log("Cache hit:", user);
