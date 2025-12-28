@@ -36,7 +36,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/leonardodipace/kit"
+    "url": "https://github.com/leonardodipace/ts-kit"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.10",

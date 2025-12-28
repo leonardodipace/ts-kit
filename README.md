@@ -428,7 +428,7 @@ This package uses GitHub Actions to automatically publish to npm. To publish a n
    ```
 
 2. Create a new release on GitHub:
-   - Go to the [Releases page](https://github.com/leonardodipace/kit/releases)
+   - Go to the [Releases page](https://github.com/leonardodipace/ts-kit/releases)
    - Click "Create a new release"
    - Create a new tag (e.g., `v0.3.0`)
    - Publish the release
@@ -461,4 +461,4 @@ MIT © Leonardo Dipace
 
 ## Repository
 
-[https://github.com/leonardodipace/kit](https://github.com/leonardodipace/kit)
+[https://github.com/leonardodipace/ts-kit](https://github.com/leonardodipace/ts-kit)
