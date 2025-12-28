@@ -10,7 +10,7 @@ import type {
 export class Policy {
   private rules: Rule[] = [];
 
-  public allow<T = any>(params: AllowParams<T>) {
+  public allow<T>(params: AllowParams<T>) {
     this.rules.push({
       action: params.action,
       entity: params.entity,
@@ -19,7 +19,7 @@ export class Policy {
     });
   }
 
-  public forbid<T = any>(params: ForbidParams<T>) {
+  public forbid<T>(params: ForbidParams<T>) {
     this.rules.push({
       action: params.action,
       entity: params.entity,
@@ -28,9 +28,12 @@ export class Policy {
     });
   }
 
-  public can<T = any>(action: Action, entity: Entity, object?: T) {
+  public can<T>(action: Action, entity: Entity, object?: T) {
     for (const rule of this.rules) {
-      if (rule.action !== action || rule.entity !== entity) {
+      const matchesAction = rule.action === action;
+      const matchesEntity = rule.entity === entity;
+
+      if (!matchesAction || !matchesEntity) {
         continue;
       }
 
@@ -48,10 +51,13 @@ export class Policy {
 
   private matchesConditions<T>(object: T, conditions: Conditions<T>) {
     for (const key in conditions) {
-      if (object[key] !== conditions[key]) {
+      const matchesConditions = object[key] === conditions[key];
+
+      if (!matchesConditions) {
         return false;
       }
     }
+
     return true;
   }
 }

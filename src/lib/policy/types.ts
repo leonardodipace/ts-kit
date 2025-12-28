@@ -1,4 +1,4 @@
-export type Action = string;
+export type Action = "read" | "create" | "update" | "delete" | (string & {});
 export type Entity = string;
 
 export type Conditions<T = any> = Partial<T>;
