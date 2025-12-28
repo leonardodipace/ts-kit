@@ -1,7 +1,10 @@
-import { type LoggingOptions, LogLevel } from "./types.js";
+import { Formatter } from "./formatter.js";
+import { LogDataType, type LoggingOptions, LogLevel, LogLevelType } from "./types.js";
+
 
 export class Logger {
   private options: LoggingOptions;
+  private formatter!: Formatter;
 
   constructor(options: LoggingOptions) {
     this.options = options;
@@ -11,35 +14,60 @@ export class Logger {
     const level = this.getLogLevel();
     if (level > LogLevel.DEBUG) return;
 
-    console.debug(msg);
+    if (this.formatter) {
+      const data = this.createLogData("DEBUG", msg);
+      console.log(this.formatter.format(data));
+    } else {
+      console.debug(msg);
+    }
   }
 
   public info(msg: string) {
     const level = this.getLogLevel();
     if (level > LogLevel.INFO) return;
 
-    console.log(msg);
+    if (this.formatter) {
+      const data = this.createLogData("INFO", msg);
+      console.log(this.formatter.format(data));
+    } else {
+      console.debug(msg);
+    }
   }
 
   public warning(msg: string) {
     const level = this.getLogLevel();
     if (level > LogLevel.WARNING) return;
 
-    console.warn(msg);
+    if (this.formatter) {
+      const data = this.createLogData("WARNING", msg);
+      console.log(this.formatter.format(data));
+    } else {
+      console.debug(msg);
+    }
   }
 
   public error(msg: string) {
     const level = this.getLogLevel();
     if (level > LogLevel.ERROR) return;
 
-    console.error(msg);
+    if (this.formatter) {
+      const data = this.createLogData("ERROR", msg);
+      console.log(this.formatter.format(data));
+    } else {
+      console.debug(msg);
+    }
   }
 
   public critical(msg: string) {
     const level = this.getLogLevel();
     if (level > LogLevel.CRITICAL) return;
 
-    console.error(msg);
+    if (this.formatter) {
+      const data = this.createLogData("CRITICAL", msg);
+      console.log(this.formatter.format(data));
+    } else {
+      console.debug(msg);
+    }
   }
 
   public getLogLevel() {
@@ -48,5 +76,15 @@ export class Logger {
     }
 
     return this.options.level;
+  }
+
+  public setFormatter(formatter: Formatter) {
+    this.formatter = formatter;
+  }
+
+  private createLogData(level: LogLevelType, msg: string): LogDataType {
+    return {
+      level, msg, prefix: this.options.prefix
+    } satisfies LogDataType;
   }
 }
