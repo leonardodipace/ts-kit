@@ -6,9 +6,9 @@ export enum LogLevel {
   CRITICAL = 50,
 }
 
-type LogLevelType = keyof typeof LogLevel;
+export type LogLevelType = keyof typeof LogLevel;
 
-export type LogData = {
+export type LogDataType = {
   prefix: string;
   level: LogLevelType;
   msg: string;
