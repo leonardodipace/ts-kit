@@ -2,12 +2,37 @@ import { Formatter } from "./formatter.js";
 import { LogDataType, type LoggingOptions, LogLevel, LogLevelType } from "./types.js";
 
 
-export class Logger {
-  private options: LoggingOptions;
-  private formatter!: Formatter;
+class Logger {
+  protected options: LoggingOptions;
+  protected formatter!: Formatter;
 
   constructor(options: LoggingOptions) {
     this.options = options;
+  }
+
+  protected getLogLevel() {
+    if (!this.options.level) {
+      return LogLevel.DEBUG;
+    }
+
+    return this.options.level;
+  }
+
+  public setFormatter(formatter: Formatter) {
+    this.formatter = formatter;
+  }
+
+  protected createLogData(level: LogLevelType, msg: string): LogDataType {
+    return {
+      level, msg, prefix: this.options.prefix
+    };
+  }
+}
+
+
+export class StreamLogger extends Logger {
+  constructor(options: LoggingOptions) {
+    super(options);
   }
 
   public debug(msg: string) {
@@ -69,22 +94,5 @@ export class Logger {
       console.debug(msg);
     }
   }
-
-  public getLogLevel() {
-    if (!this.options.level) {
-      return LogLevel.DEBUG;
-    }
-
-    return this.options.level;
-  }
-
-  public setFormatter(formatter: Formatter) {
-    this.formatter = formatter;
-  }
-
-  private createLogData(level: LogLevelType, msg: string): LogDataType {
-    return {
-      level, msg, prefix: this.options.prefix
-    } satisfies LogDataType;
-  }
 }
+
