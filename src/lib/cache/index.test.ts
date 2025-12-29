@@ -157,6 +157,18 @@ describe("Cache", () => {
       expect(stored).toBe(JSON.stringify({ name: "John" }));
     });
 
+    test("should handle NaN", async () => {
+      const redis = createMockRedis();
+      const cache = new Cache<{ id: number }>({ redis });
+
+      const [error, data] = await cache.set("user:id", { id: NaN });
+      expect(error).toBeNull();
+      expect(data).toEqual({ id: NaN });
+
+      const stored = redis.getStore().get("user:id");
+      expect(stored).toBe(JSON.stringify({ id: NaN }));
+    });
+
     test("should store value with TTL when provided", async () => {
       const redis = createMockRedis();
       const cache = new Cache<string>({ redis, ttl: 5000 });
