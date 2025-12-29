@@ -2,7 +2,7 @@ import { Formatter } from "./formatter.js";
 import { LogDataType, type LoggingOptions, LogLevel, LogLevelType } from "./types.js";
 
 
-class Logger {
+export class ConsoleLogger {
   protected options: LoggingOptions;
   protected formatter!: Formatter;
 
@@ -27,13 +27,7 @@ class Logger {
       level, msg, prefix: this.options.prefix
     };
   }
-}
 
-
-export class StreamLogger extends Logger {
-  constructor(options: LoggingOptions) {
-    super(options);
-  }
 
   public debug(msg: string) {
     const level = this.getLogLevel();
@@ -41,7 +35,7 @@ export class StreamLogger extends Logger {
 
     if (this.formatter) {
       const data = this.createLogData("DEBUG", msg);
-      console.log(this.formatter.format(data));
+      console.debug(this.formatter.format(data));
     } else {
       console.debug(msg);
     }
@@ -53,9 +47,9 @@ export class StreamLogger extends Logger {
 
     if (this.formatter) {
       const data = this.createLogData("INFO", msg);
-      console.log(this.formatter.format(data));
+      console.info(this.formatter.format(data));
     } else {
-      console.debug(msg);
+      console.info(msg);
     }
   }
 
@@ -65,9 +59,9 @@ export class StreamLogger extends Logger {
 
     if (this.formatter) {
       const data = this.createLogData("WARNING", msg);
-      console.log(this.formatter.format(data));
+      console.warn(this.formatter.format(data));
     } else {
-      console.debug(msg);
+      console.warn(msg);
     }
   }
 
@@ -77,9 +71,9 @@ export class StreamLogger extends Logger {
 
     if (this.formatter) {
       const data = this.createLogData("ERROR", msg);
-      console.log(this.formatter.format(data));
+      console.error(this.formatter.format(data));
     } else {
-      console.debug(msg);
+      console.error(msg);
     }
   }
 
@@ -89,9 +83,9 @@ export class StreamLogger extends Logger {
 
     if (this.formatter) {
       const data = this.createLogData("CRITICAL", msg);
-      console.log(this.formatter.format(data));
+      console.error(this.formatter.format(data));
     } else {
-      console.debug(msg);
+      console.error(msg);
     }
   }
 }

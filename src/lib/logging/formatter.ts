@@ -1,7 +1,5 @@
 import type { LogDataType } from "./types.js";
 
-
-
 export interface Formatter<Input = LogDataType, Output = string> {
   format(logData: Input): Output;
 }
