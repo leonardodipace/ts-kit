@@ -102,6 +102,11 @@ export class FileLogger {
 
     this.file.write("\n")
   }
+
+  public async close() {
+    const writtenBytes = await this.file.end();
+    return writtenBytes;
+  }
 }
 
 
