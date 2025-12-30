@@ -238,6 +238,58 @@ describe("Cache", () => {
       expect(obj).toEqual({ key: "value" });
       expect(redis.getStore().get("obj")).toBe('{"key":"value"}');
     });
+
+    test("should return InvalidTTLError on negative TTL", async () => {
+      const redis = createMockRedis();
+      const cache = new Cache<{ name: string }>({ redis, ttl: -1 });
+
+      const [error, data] = await cache.set("user:1", { name: "John" });
+      expect(error).toEqual({
+        type: "InvalidTTLError",
+        message: "Unable to save records with ttl equal to -1",
+      });
+      expect(data).toBeNull();
+    });
+
+    test("should return InvalidTTLError on non integer TTL", async () => {
+      const redis = createMockRedis();
+      const nonIntegerTTL = 0.1 + 0.2
+      const cache = new Cache<{ name: string }>({ redis, ttl: nonIntegerTTL });
+
+      const [error, data] = await cache.set("user:1", { name: "John" });
+      expect(error).toEqual({
+        type: "InvalidTTLError",
+        message: `Unable to save records with ttl equal to ${nonIntegerTTL}`,
+      });
+      expect(data).toBeNull();
+    });
+
+    test("should return InvalidTTLError on NaN TTL", async () => {
+      const redis = createMockRedis();
+      const cache = new Cache<{ name: string }>({ redis, ttl: NaN });
+
+      const [error, data] = await cache.set("user:1", { name: "John" });
+
+      expect(error).toEqual({
+        type: "InvalidTTLError",
+        message: "Unable to save records with ttl equal to NaN",
+      });
+      expect(data).toBeNull();
+    });
+
+    test("should return InvalidTTLError on very large TTL", async () => {
+      const redis = createMockRedis();
+      const cache = new Cache<{ name: string }>({ redis, ttl: Infinity });
+
+      const [error, data] = await cache.set("user:1", { name: "John" });
+
+      expect(error).toEqual({
+        type: "InvalidTTLError",
+        message: "Unable to save records with ttl equal to Infinity",
+      });
+      expect(data).toBeNull();
+    });
+
   });
 
   describe("delete", () => {
