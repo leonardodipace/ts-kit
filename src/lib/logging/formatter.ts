@@ -15,13 +15,10 @@ export class BaseFormatter implements Formatter {
 
 export class SimpleJSONFormatter implements Formatter {
   public format(logData: LogDataType): string {
-
     const data = {
       timestamp: new Date().toISOString(),
-      ...logData
-    }
+      ...logData,
+    };
     return JSON.stringify(data);
   }
 }
-
-

@@ -1,7 +1,11 @@
-import { Formatter } from "./formatter.js";
-import { LogDataType, type LoggingOptions, LogLevel, LogLevelType } from "./types.js";
 import { appendFileSync } from "node:fs";
-
+import type { Formatter } from "./formatter.js";
+import {
+  type LogDataType,
+  type LoggingOptions,
+  LogLevel,
+  type LogLevelType,
+} from "./types.js";
 
 export class FileLogger {
   protected options: LoggingOptions;
@@ -27,10 +31,11 @@ export class FileLogger {
 
   protected createLogData(level: LogLevelType, msg: string): LogDataType {
     return {
-      level, msg, prefix: this.options.prefix
+      level,
+      msg,
+      prefix: this.options.prefix,
     };
   }
-
 
   public async debug(msg: string) {
     const level = this.getLogLevel();
@@ -103,8 +108,6 @@ export class FileLogger {
   }
 }
 
-
-
 export class ConsoleLogger {
   protected options: LoggingOptions;
   protected formatter!: Formatter;
@@ -127,10 +130,11 @@ export class ConsoleLogger {
 
   protected createLogData(level: LogLevelType, msg: string): LogDataType {
     return {
-      level, msg, prefix: this.options.prefix
+      level,
+      msg,
+      prefix: this.options.prefix,
     };
   }
-
 
   public debug(msg: string) {
     const level = this.getLogLevel();
@@ -192,4 +196,3 @@ export class ConsoleLogger {
     }
   }
 }
-

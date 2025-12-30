@@ -12,10 +12,9 @@ export type LogDataType = {
   prefix: string;
   level: LogLevelType;
   msg: string;
-}
+};
 
 export type LoggingOptions = {
   prefix: string;
   level?: LogLevel;
 };
-
