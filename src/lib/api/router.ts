@@ -1,12 +1,5 @@
-export const convertPathToBunFormat = (path: string): string => {
+export const convertPathToBunFormat = (path: string) => {
   return path.replace(/\{(\w+)\}/g, ":$1");
-};
-
-export const extractParamNames = (path: string): string[] => {
-  const matches = path.matchAll(/\{(\w+)\}/g);
-  return Array.from(matches, (m) => m[1]).filter(
-    (name): name is string => name !== undefined,
-  );
 };
 
 export const parseQueryString = (url: URL) => {
@@ -15,17 +8,13 @@ export const parseQueryString = (url: URL) => {
   for (const [key, value] of url.searchParams.entries()) {
     const existing = query[key];
 
-    if (existing === undefined) {
+    if (!existing) {
       query[key] = value;
-      continue;
-    }
-
-    if (Array.isArray(existing)) {
+    } else if (Array.isArray(existing)) {
       existing.push(value);
-      continue;
+    } else {
+      query[key] = [existing, value];
     }
-
-    query[key] = [existing, value];
   }
 
   return query;
@@ -40,9 +29,10 @@ export const parseCookies = (cookieHeader: string | null) => {
   const pairs = cookieHeader.split(";");
 
   for (const pair of pairs) {
-    const [key, value] = pair.split("=").map((s) => s.trim());
-    if (key && value) {
-      cookies[key] = value;
+    const [key, value] = pair.split("=");
+
+    if (key?.trim() && value?.trim()) {
+      cookies[key.trim()] = value.trim();
     }
   }
 

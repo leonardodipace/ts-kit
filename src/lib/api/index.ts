@@ -18,6 +18,12 @@ import type {
 import { validateSchema } from "./validator.js";
 
 export class Api {
+  private static readonly INTERNAL_SERVER_ERROR: ApiError = {
+    type: "InternalServerError",
+    message: "Internal server error",
+    context: { statusCode: 500 },
+  };
+
   private options: ApiOptions;
   private routes: InternalRoute[] = [];
   private server: Server<unknown> | null = null;
@@ -26,52 +32,63 @@ export class Api {
     this.options = options;
   }
 
-  private defaultErrorHandler(error: ApiError): Response {
+  private defaultErrorHandler(error: ApiError) {
     return Response.json(
       { message: error.message },
       { status: error.context?.statusCode || 500 },
     );
   }
 
-  private async handleError(req: Request, error: ApiError): Promise<Response> {
+  private async handleError(req: Request, error: ApiError) {
     const handler = this.options.onError;
 
     if (!handler) {
       return this.defaultErrorHandler(error);
     }
 
-    try {
-      const response = await Promise.resolve(handler(error, req));
+    const [handlerError, response] = await mightThrow(
+      Promise.resolve().then(() => handler(error, req)),
+    );
 
-      if (!response || !(response instanceof Response)) {
-        return this.defaultErrorHandler({
-          type: "InternalServerError",
-          message: "Internal server error",
-          context: { statusCode: 500 },
-        });
-      }
-
-      return response;
-    } catch (_handlerError) {
-      return this.defaultErrorHandler({
-        type: "InternalServerError",
-        message: "Internal server error",
-        context: { statusCode: 500 },
-      });
+    if (handlerError || !response || !(response instanceof Response)) {
+      return this.defaultErrorHandler(Api.INTERNAL_SERVER_ERROR);
     }
+
+    return response;
+  }
+
+  private async validateRequestField(
+    req: Request,
+    schema: RequestSchema[keyof RequestSchema],
+    data: unknown,
+    fieldName: string,
+  ) {
+    const [error, validated] = await validateSchema(schema, data);
+
+    if (error) {
+      const response = await this.handleError(req, {
+        type: "ValidationError",
+        message: error.message,
+        context: { validationField: fieldName, statusCode: 400 },
+      });
+
+      return [response, null] as const;
+    }
+
+    return [null, validated] as const;
   }
 
   public defineRoute<
     TRequest extends RequestSchema = RequestSchema,
     TResponse extends ResponseSchema = ResponseSchema,
-  >(definition: RouteDefinition<TRequest, TResponse>): void {
+  >(definition: RouteDefinition<TRequest, TResponse>) {
     const fullPath = this.options.prefix
       ? `${this.options.prefix}${definition.path}`
       : definition.path;
 
     const bunPath = convertPathToBunFormat(fullPath);
 
-    const wrappedHandler = async (req: Request): Promise<Response> => {
+    const wrappedHandler = async (req: Request) => {
       const url = new URL(req.url);
       const query = parseQueryString(url);
       const cookies = parseCookies(req.headers.get("cookie"));
@@ -79,11 +96,13 @@ export class Api {
       const params = (req as { params?: Record<string, string> }).params || {};
 
       let body: unknown;
+
       if (definition.request?.body) {
         const contentType = req.headers.get("content-type") || "";
 
         if (contentType.includes("application/json")) {
           const [parseError, parsedBody] = await mightThrow(req.json());
+
           if (parseError) {
             return this.handleError(req, {
               type: "ValidationError",
@@ -91,79 +110,67 @@ export class Api {
               context: { statusCode: 400 },
             });
           }
+
           body = parsedBody;
         }
       }
 
       const headers: Record<string, string> = {};
+
       if (definition.request?.headers) {
         req.headers.forEach((value, key) => {
           headers[key] = value;
         });
       }
 
-      const [bodyError, validatedBody] = await validateSchema(
+      const [bodyError, validatedBody] = await this.validateRequestField(
+        req,
         definition.request?.body,
         body,
+        "body",
       );
-      if (bodyError) {
-        return this.handleError(req, {
-          type: "ValidationError",
-          message: bodyError.message,
-          context: { validationField: "body", statusCode: 400 },
-        });
-      }
 
-      const [paramsError, validatedParams] = await validateSchema(
+      if (bodyError) return bodyError;
+
+      const [paramsError, validatedParams] = await this.validateRequestField(
+        req,
         definition.request?.params,
         params,
+        "params",
       );
-      if (paramsError) {
-        return this.handleError(req, {
-          type: "ValidationError",
-          message: paramsError.message,
-          context: { validationField: "params", statusCode: 400 },
-        });
-      }
 
-      const [queryError, validatedQuery] = await validateSchema(
+      if (paramsError) return paramsError;
+
+      const [queryError, validatedQuery] = await this.validateRequestField(
+        req,
         definition.request?.query,
         query,
+        "query",
       );
-      if (queryError) {
-        return this.handleError(req, {
-          type: "ValidationError",
-          message: queryError.message,
-          context: { validationField: "query", statusCode: 400 },
-        });
-      }
 
-      const [headersError, validatedHeaders] = await validateSchema(
+      if (queryError) return queryError;
+
+      const [headersError, validatedHeaders] = await this.validateRequestField(
+        req,
         definition.request?.headers,
         headers,
+        "headers",
       );
-      if (headersError) {
-        return this.handleError(req, {
-          type: "ValidationError",
-          message: headersError.message,
-          context: { validationField: "headers", statusCode: 400 },
-        });
-      }
 
-      const [cookiesError, validatedCookies] = await validateSchema(
+      if (headersError) return headersError;
+
+      const [cookiesError, validatedCookies] = await this.validateRequestField(
+        req,
         definition.request?.cookies,
         cookies,
+        "cookies",
       );
-      if (cookiesError) {
-        return this.handleError(req, {
-          type: "ValidationError",
-          message: cookiesError.message,
-          context: { validationField: "cookies", statusCode: 400 },
-        });
-      }
+
+      if (cookiesError) return cookiesError;
 
       const validateResponseFn = async (status: number, data: unknown) => {
         const responseSchema = definition.response[status];
+
         return validateSchema(responseSchema, data);
       };
 
@@ -181,24 +188,13 @@ export class Api {
       );
 
       const handlerResult = definition.handler(context);
+
       const [handlerError, response] = await mightThrow(
         Promise.resolve(handlerResult),
       );
 
-      if (handlerError) {
-        return this.handleError(req, {
-          type: "InternalServerError",
-          message: "Internal server error",
-          context: { statusCode: 500 },
-        });
-      }
-
-      if (!response) {
-        return this.handleError(req, {
-          type: "InternalServerError",
-          message: "Internal server error",
-          context: { statusCode: 500 },
-        });
+      if (handlerError || !response) {
+        return this.handleError(req, Api.INTERNAL_SERVER_ERROR);
       }
 
       return response;
@@ -216,7 +212,7 @@ export class Api {
     return generateOpenApiSpec(this.routes, this.options);
   }
 
-  public listen(port: number, callback?: () => void): Server<unknown> {
+  public listen(port: number, callback?: () => void) {
     const bunRoutes: Record<
       string,
       Record<string, (req: Request) => Promise<Response>>
@@ -247,7 +243,7 @@ export class Api {
     return this.server;
   }
 
-  public close(): void {
+  public close() {
     if (this.server) {
       this.server.stop();
       this.server = null;

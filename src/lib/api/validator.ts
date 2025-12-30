@@ -10,7 +10,7 @@ export type ValidationResult<T> = readonly [
 export const validateSchema = async <T>(
   schema: StandardSchemaV1 | undefined,
   data: unknown,
-): Promise<ValidationResult<T>> => {
+) => {
   if (!schema) {
     return ok(data as T);
   }

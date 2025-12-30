@@ -66,7 +66,7 @@ export class RequestContext<
     this.handleError = handleError;
   }
 
-  public async json(status: number, data: unknown): Promise<Response> {
+  public async json(status: number, data: unknown) {
     const [error, validatedData] = await this.validateResponse(status, data);
 
     if (error) {
@@ -80,21 +80,21 @@ export class RequestContext<
     return Response.json(validatedData, { status });
   }
 
-  public text(status: number, text: string): Response {
+  public text(status: number, text: string) {
     return new Response(text, {
       status,
       headers: { "Content-Type": "text/plain" },
     });
   }
 
-  public html(status: number, html: string): Response {
+  public html(status: number, html: string) {
     return new Response(html, {
       status,
       headers: { "Content-Type": "text/html" },
     });
   }
 
-  public redirect(status: number, url: string): Response {
+  public redirect(status: number, url: string) {
     return Response.redirect(url, status);
   }
 }
