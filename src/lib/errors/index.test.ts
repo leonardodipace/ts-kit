@@ -20,6 +20,20 @@ describe("Errors Module", () => {
       expect(error).toBeNull();
       expect(data).toBe("test");
     });
+
+    test("should preserve complex type information", () => {
+      type Obj = {
+        attr: number;
+        inner?: Obj;
+      }
+
+      const obj: Obj = {
+        attr: 1, inner: { attr: 2 }
+      }
+      const [error, data] = ok(obj);
+      expect(error).toBeNull();
+      expect(data).toMatchObject(obj);
+    });
   });
 
   describe("err", () => {
@@ -154,6 +168,19 @@ describe("Errors Module", () => {
         { key: "value" },
       ]);
     });
+
+    test("should handle multiple promises at the same time", async () => {
+      const p1 = Promise.resolve(42);
+      const p2 = Promise.resolve(true);
+      const p3 = Promise.resolve({ key: "value" });
+      const [error, result] = await mightThrow(Promise.all([p1, p2, p3]))
+
+      expect(error).toBeNull();
+      expect(result).toBeArray();
+      expect(result).toBeArrayOfSize(3);
+      expect(result).toEqual([42, true, { key: "value" }]);
+    });
+
 
     test("should handle different rejection types", async () => {
       const [error1] = await mightThrow(Promise.reject("string error"));
