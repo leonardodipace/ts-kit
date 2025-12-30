@@ -15,13 +15,7 @@ export const validateSchema = async <T>(
     return ok(data as T);
   }
 
-  const standardSchema = schema["~standard"];
-
-  if (!standardSchema || !standardSchema.validate) {
-    return err("ValidationError", "Invalid schema: missing ~standard property");
-  }
-
-  const result = await standardSchema.validate(data);
+  const result = await schema["~standard"].validate(data);
 
   if (result.issues) {
     const message = result.issues

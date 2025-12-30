@@ -10,6 +10,7 @@ import {
 import type {
   ApiError,
   ApiOptions,
+  InferInput,
   InternalRoute,
   RequestSchema,
   ResponseSchema,
@@ -177,11 +178,11 @@ export class Api {
       const context = new RequestContext<TRequest, TResponse>(
         req,
         {
-          body: validatedBody,
-          params: validatedParams,
-          query: validatedQuery,
-          headers: validatedHeaders,
-          cookies: validatedCookies,
+          body: validatedBody as InferInput<TRequest["body"]>,
+          params: validatedParams as InferInput<TRequest["params"]>,
+          query: validatedQuery as InferInput<TRequest["query"]>,
+          headers: validatedHeaders as InferInput<TRequest["headers"]>,
+          cookies: validatedCookies as InferInput<TRequest["cookies"]>,
         },
         validateResponseFn,
         (err) => this.handleError(req, err),

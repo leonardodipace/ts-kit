@@ -1,17 +1,18 @@
 import type {
   ApiError,
   HandlerContext,
+  InferInput,
   RequestSchema,
   ResponseSchema,
 } from "./types.js";
 import type { ValidationResult } from "./validator.js";
 
-type ValidatedData = {
-  body?: unknown;
-  params?: unknown;
-  query?: unknown;
-  headers?: unknown;
-  cookies?: unknown;
+type ValidatedData<TRequest extends RequestSchema> = {
+  body: InferInput<TRequest["body"]>;
+  params: InferInput<TRequest["params"]>;
+  query: InferInput<TRequest["query"]>;
+  headers: InferInput<TRequest["headers"]>;
+  cookies: InferInput<TRequest["cookies"]>;
 };
 
 type ValidateResponseFn = (
@@ -37,31 +38,16 @@ export class RequestContext<
 
   constructor(
     request: Request,
-    validatedData: ValidatedData,
+    validatedData: ValidatedData<TRequest>,
     validateResponse: ValidateResponseFn,
     handleError: HandleErrorFn,
   ) {
     this.raw = request;
-    this.body = validatedData.body as HandlerContext<
-      TRequest,
-      TResponse
-    >["body"];
-    this.params = validatedData.params as HandlerContext<
-      TRequest,
-      TResponse
-    >["params"];
-    this.query = validatedData.query as HandlerContext<
-      TRequest,
-      TResponse
-    >["query"];
-    this.headers = validatedData.headers as HandlerContext<
-      TRequest,
-      TResponse
-    >["headers"];
-    this.cookies = validatedData.cookies as HandlerContext<
-      TRequest,
-      TResponse
-    >["cookies"];
+    this.body = validatedData.body;
+    this.params = validatedData.params;
+    this.query = validatedData.query;
+    this.headers = validatedData.headers;
+    this.cookies = validatedData.cookies;
     this.validateResponse = validateResponse;
     this.handleError = handleError;
   }

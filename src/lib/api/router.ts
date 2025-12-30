@@ -8,12 +8,12 @@ export const parseQueryString = (url: URL) => {
   for (const [key, value] of url.searchParams.entries()) {
     const existing = query[key];
 
-    if (!existing) {
-      query[key] = value;
-    } else if (Array.isArray(existing)) {
+    if (Array.isArray(existing)) {
       existing.push(value);
-    } else {
+    } else if (existing) {
       query[key] = [existing, value];
+    } else {
+      query[key] = value;
     }
   }
 
@@ -26,13 +26,14 @@ export const parseCookies = (cookieHeader: string | null) => {
   }
 
   const cookies: Record<string, string> = {};
-  const pairs = cookieHeader.split(";");
 
-  for (const pair of pairs) {
+  for (const pair of cookieHeader.split(";")) {
     const [key, value] = pair.split("=");
+    const trimmedKey = key?.trim();
+    const trimmedValue = value?.trim();
 
-    if (key?.trim() && value?.trim()) {
-      cookies[key.trim()] = value.trim();
+    if (trimmedKey && trimmedValue) {
+      cookies[trimmedKey] = trimmedValue;
     }
   }
 
