@@ -4,7 +4,7 @@ import type { CacheOptions } from "./types.js";
 export class Cache<T> {
   private options: CacheOptions;
 
-  constructor(options: CacheOptions) {
+  public constructor(options: CacheOptions) {
     this.options = options;
   }
 
