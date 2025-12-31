@@ -92,8 +92,8 @@ describe("Api", () => {
       handler: async (c) => {
         return c.json(200, {
           id: 1,
-          name: c.body.name,
-          email: c.body.email,
+          name: c.request.body.name,
+          email: c.request.body.email,
         });
       },
     });
@@ -144,7 +144,7 @@ describe("Api", () => {
       },
       handler: async (c) => {
         return c.json(200, {
-          id: c.params.id,
+          id: c.request.params.id,
           name: "Test User",
         });
       },
@@ -184,8 +184,8 @@ describe("Api", () => {
       },
       handler: async (c) => {
         return c.json(200, {
-          userId: c.params.userId,
-          postId: c.params.postId,
+          userId: c.request.params.userId,
+          postId: c.request.params.postId,
         });
       },
     });
@@ -221,8 +221,8 @@ describe("Api", () => {
       },
       handler: async (c) => {
         return c.json(200, {
-          query: String(c.query.q),
-          limit: Number(c.query.limit),
+          query: String(c.request.query.q),
+          limit: Number(c.request.query.limit),
         });
       },
     });
@@ -297,7 +297,11 @@ describe("Api", () => {
         }),
       },
       handler: async (c) => {
-        return c.json(200, { id: 1, name: c.body.name, email: c.body.email });
+        return c.json(200, {
+          id: 1,
+          name: c.request.body.name,
+          email: c.request.body.email,
+        });
       },
     });
 
@@ -519,7 +523,7 @@ describe("Api", () => {
         200: z.object({ sessionId: z.string() }),
       },
       handler: async (c) => {
-        return c.json(200, { sessionId: c.cookies.sessionId });
+        return c.json(200, { sessionId: c.request.cookies.sessionId });
       },
     });
 

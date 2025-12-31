@@ -22,11 +22,11 @@ describe("RequestContext", () => {
       mockHandleError,
     );
 
-    expect(context.body).toEqual({ name: "John" });
-    expect(context.params).toEqual({ id: "123" });
-    expect(context.query).toEqual({ search: "test" });
-    expect(context.headers).toEqual({ authorization: "Bearer token" });
-    expect(context.cookies).toEqual({ sessionId: "abc123" });
+    expect(context.request.body).toEqual({ name: "John" });
+    expect(context.request.params).toEqual({ id: "123" });
+    expect(context.request.query).toEqual({ search: "test" });
+    expect(context.request.headers).toEqual({ authorization: "Bearer token" });
+    expect(context.request.cookies).toEqual({ sessionId: "abc123" });
     expect(context.raw).toBe(mockRequest);
   });
 
@@ -222,11 +222,11 @@ describe("RequestContext", () => {
       mockHandleError,
     );
 
-    expect(context.body).toBeUndefined();
-    expect(context.params).toBeUndefined();
-    expect(context.query).toBeUndefined();
-    expect(context.headers).toBeUndefined();
-    expect(context.cookies).toBeUndefined();
+    expect(context.request.body).toBeUndefined();
+    expect(context.request.params).toBeUndefined();
+    expect(context.request.query).toBeUndefined();
+    expect(context.request.headers).toBeUndefined();
+    expect(context.request.cookies).toBeUndefined();
   });
 
   test("should handle complex nested data in json response", async () => {

@@ -56,11 +56,6 @@ export type HandlerContext<
   TRequest extends RequestSchema = RequestSchema,
   TResponse extends ResponseSchema = ResponseSchema,
 > = {
-  body: InferInput<TRequest["body"]>;
-  params: InferInput<TRequest["params"]>;
-  query: InferInput<TRequest["query"]>;
-  headers: InferInput<TRequest["headers"]>;
-  cookies: InferInput<TRequest["cookies"]>;
   request: {
     body: InferInput<TRequest["body"]>;
     params: InferInput<TRequest["params"]>;

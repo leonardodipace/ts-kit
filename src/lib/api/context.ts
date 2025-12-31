@@ -27,11 +27,6 @@ export class RequestContext<
   TResponse extends ResponseSchema = ResponseSchema,
 > implements HandlerContext<TRequest, TResponse>
 {
-  public body: HandlerContext<TRequest, TResponse>["body"];
-  public params: HandlerContext<TRequest, TResponse>["params"];
-  public query: HandlerContext<TRequest, TResponse>["query"];
-  public headers: HandlerContext<TRequest, TResponse>["headers"];
-  public cookies: HandlerContext<TRequest, TResponse>["cookies"];
   public request: HandlerContext<TRequest, TResponse>["request"];
   public raw: Request;
   private validateResponse: ValidateResponseFn;
@@ -44,11 +39,6 @@ export class RequestContext<
     handleError: HandleErrorFn,
   ) {
     this.raw = request;
-    this.body = validatedData.body;
-    this.params = validatedData.params;
-    this.query = validatedData.query;
-    this.headers = validatedData.headers;
-    this.cookies = validatedData.cookies;
     this.request = {
       body: validatedData.body,
       params: validatedData.params,
