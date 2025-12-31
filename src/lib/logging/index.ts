@@ -2,19 +2,85 @@ import { appendFileSync } from "node:fs";
 import type { Formatter } from "./formatter.js";
 import {
   type LogDataType,
-  type LoggingOptions,
   LogLevel,
   type LogLevelType,
+  type ProviderOptions,
 } from "./types.js";
 
-export class FileLogger {
-  protected options: LoggingOptions;
-  protected formatter!: Formatter;
-  protected file: string;
+export abstract class AbstractLogger {
+  abstract debug(msg: string): void;
+  abstract info(msg: string): void;
+  abstract warning(msg: string): void;
+  abstract error(msg: string): void;
+  abstract critical(msg: string): void;
 
-  constructor(file: string, options: LoggingOptions) {
-    this.options = options;
+  protected createLogData(
+    level: LogLevelType,
+    msg: string,
+    prefix: string,
+  ): LogDataType {
+    return {
+      level,
+      msg,
+      prefix,
+    };
+  }
+}
+
+export class Logger extends AbstractLogger {
+  private providers: LoggerProvider[];
+  private prefix: string;
+
+  constructor(prefix: string, providers: LoggerProvider[]) {
+    super();
+    this.prefix = prefix;
+    this.providers = providers;
+  }
+
+  public debug(msg: string) {
+    const data = this.createLogData("DEBUG", msg, this.prefix);
+    this.run(data);
+  }
+
+  public info(msg: string) {
+    const data = this.createLogData("INFO", msg, this.prefix);
+    this.run(data);
+  }
+
+  public warning(msg: string) {
+    const data = this.createLogData("WARNING", msg, this.prefix);
+    this.run(data);
+  }
+
+  public error(msg: string) {
+    const data = this.createLogData("ERROR", msg, this.prefix);
+    this.run(data);
+  }
+
+  public critical(msg: string) {
+    const data = this.createLogData("CRITICAL", msg, this.prefix);
+    this.run(data);
+  }
+
+  private run(data: LogDataType) {
+    for (let i = 0; i < this.providers.length; i++) {
+      const provider = this.providers[i];
+      provider?.execute(data);
+    }
+  }
+}
+
+export interface LoggerProvider {
+  execute(data: LogDataType): void;
+}
+
+export class FileProvider implements LoggerProvider {
+  private options: ProviderOptions;
+  private file: string;
+
+  constructor(file: string, options: ProviderOptions) {
     this.file = file;
+    this.options = options;
   }
 
   protected getLogLevel() {
@@ -26,97 +92,31 @@ export class FileLogger {
   }
 
   public setFormatter(formatter: Formatter) {
-    this.formatter = formatter;
+    this.options.formatter = formatter;
   }
 
-  protected createLogData(level: LogLevelType, msg: string): LogDataType {
-    return {
-      level,
-      msg,
-      prefix: this.options.prefix,
-    };
-  }
-
-  public async debug(msg: string) {
+  public execute(data: LogDataType): void {
     const level = this.getLogLevel();
-    if (level > LogLevel.DEBUG) return;
+    const userLevel = LogLevel[data.level];
+    if (level > userLevel) return;
 
-    if (this.formatter) {
-      const data = this.createLogData("DEBUG", msg);
-      appendFileSync(this.file, this.formatter.format(data));
-    } else {
-      appendFileSync(this.file, msg);
+    let { msg } = data;
+    if (this.options.formatter) {
+      msg = this.options.formatter.format(data);
     }
-
-    appendFileSync(this.file, "\n");
-  }
-
-  public async info(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.INFO) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("INFO", msg);
-      appendFileSync(this.file, this.formatter.format(data));
-    } else {
-      appendFileSync(this.file, msg);
-    }
-
-    appendFileSync(this.file, "\n");
-  }
-
-  public async warning(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.WARNING) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("WARNING", msg);
-      appendFileSync(this.file, this.formatter.format(data));
-    } else {
-      appendFileSync(this.file, msg);
-    }
-
-    appendFileSync(this.file, "\n");
-  }
-
-  public async error(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.ERROR) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("ERROR", msg);
-      appendFileSync(this.file, this.formatter.format(data));
-    } else {
-      appendFileSync(this.file, msg);
-    }
-
-    appendFileSync(this.file, "\n");
-  }
-
-  public async critical(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.CRITICAL) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("CRITICAL", msg);
-      appendFileSync(this.file, this.formatter.format(data));
-    } else {
-      appendFileSync(this.file, msg);
-    }
-
+    appendFileSync(this.file, msg);
     appendFileSync(this.file, "\n");
   }
 }
 
-export class ConsoleLogger {
-  protected options: LoggingOptions;
-  protected formatter!: Formatter;
+export class ConsoleProvider implements LoggerProvider {
+  private options: ProviderOptions;
 
-  constructor(options: LoggingOptions) {
+  constructor(options: ProviderOptions) {
     this.options = options;
   }
 
-  protected getLogLevel() {
+  private getLogLevel() {
     if (!this.options.level) {
       return LogLevel.DEBUG;
     }
@@ -125,74 +125,38 @@ export class ConsoleLogger {
   }
 
   public setFormatter(formatter: Formatter) {
-    this.formatter = formatter;
+    this.options.formatter = formatter;
   }
 
-  protected createLogData(level: LogLevelType, msg: string): LogDataType {
-    return {
-      level,
-      msg,
-      prefix: this.options.prefix,
-    };
-  }
-
-  public debug(msg: string) {
+  public execute(data: LogDataType): void {
     const level = this.getLogLevel();
-    if (level > LogLevel.DEBUG) return;
+    const userLevel = LogLevel[data.level];
+    if (level > userLevel) return;
 
-    if (this.formatter) {
-      const data = this.createLogData("DEBUG", msg);
-      console.debug(this.formatter.format(data));
-    } else {
-      console.debug(msg);
+    let { msg } = data;
+    if (this.options.formatter) {
+      msg = this.options.formatter.format(data);
     }
-  }
 
-  public info(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.INFO) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("INFO", msg);
-      console.info(this.formatter.format(data));
-    } else {
-      console.info(msg);
-    }
-  }
-
-  public warning(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.WARNING) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("WARNING", msg);
-      console.warn(this.formatter.format(data));
-    } else {
-      console.warn(msg);
-    }
-  }
-
-  public error(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.ERROR) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("ERROR", msg);
-      console.error(this.formatter.format(data));
-    } else {
-      console.error(msg);
-    }
-  }
-
-  public critical(msg: string) {
-    const level = this.getLogLevel();
-    if (level > LogLevel.CRITICAL) return;
-
-    if (this.formatter) {
-      const data = this.createLogData("CRITICAL", msg);
-      console.error(this.formatter.format(data));
-    } else {
-      console.error(msg);
+    switch (userLevel) {
+      case LogLevel.DEBUG:
+        console.debug(msg);
+        break;
+      case LogLevel.INFO:
+        console.info(msg);
+        break;
+      case LogLevel.WARNING:
+        console.warn(msg);
+        break;
+      case LogLevel.ERROR:
+        console.error(msg);
+        break;
+      case LogLevel.CRITICAL:
+        console.error(msg);
+        break;
+      default:
+        console.debug(msg);
+        break;
     }
   }
 }

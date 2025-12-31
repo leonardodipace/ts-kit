@@ -1,3 +1,5 @@
+import type { Formatter } from "./formatter.js";
+
 export enum LogLevel {
   DEBUG = 10,
   INFO = 20,
@@ -14,7 +16,7 @@ export type LogDataType = {
   msg: string;
 };
 
-export type LoggingOptions = {
-  prefix: string;
+export type ProviderOptions = {
   level?: LogLevel;
+  formatter?: Formatter;
 };
