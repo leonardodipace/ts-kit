@@ -2,11 +2,6 @@ import type { Server } from "bun";
 import { mightThrow } from "../errors/index.js";
 import { RequestContext } from "./context.js";
 import { generateOpenApiSpec } from "./openapi.js";
-import {
-  convertPathToBunFormat,
-  parseCookies,
-  parseQueryString,
-} from "./router.js";
 import type {
   ApiError,
   ApiOptions,
@@ -33,33 +28,6 @@ export class Api {
     this.options = options;
   }
 
-  private async handleError(error: ApiError) {
-    return Response.json(
-      { message: error.message },
-      { status: error.context?.statusCode ?? 500 },
-    );
-  }
-
-  private async validateRequestField(
-    schema: RequestSchema[keyof RequestSchema],
-    data: unknown,
-    fieldName: string,
-  ) {
-    const [error, validated] = await validateSchema(schema, data);
-
-    if (error) {
-      const response = this.handleError({
-        type: "ValidationError",
-        message: error.message,
-        context: { validationField: fieldName, statusCode: 400 },
-      });
-
-      return [response, null] as const;
-    }
-
-    return [null, validated] as const;
-  }
-
   public defineRoute<
     TRequest extends RequestSchema = RequestSchema,
     TResponse extends ResponseSchema = ResponseSchema,
@@ -68,12 +36,38 @@ export class Api {
       ? `${this.options.prefix}${definition.path}`
       : definition.path;
 
-    const bunPath = convertPathToBunFormat(fullPath);
+    const bunPath = fullPath.replace(/\{(\w+)\}/g, ":$1");
 
     const wrappedHandler = async (req: Request) => {
       const url = new URL(req.url);
-      const query = parseQueryString(url);
-      const cookies = parseCookies(req.headers.get("cookie"));
+
+      // Parse query string
+      const query: Record<string, string | string[]> = {};
+      for (const [key, value] of url.searchParams.entries()) {
+        const existing = query[key];
+        if (Array.isArray(existing)) {
+          existing.push(value);
+        } else if (existing) {
+          query[key] = [existing, value];
+        } else {
+          query[key] = value;
+        }
+      }
+
+      // Parse cookies
+      const cookieHeader = req.headers.get("cookie");
+      const cookies: Record<string, string> = {};
+      if (cookieHeader) {
+        for (const pair of cookieHeader.split(";")) {
+          const equalsIndex = pair.indexOf("=");
+          if (equalsIndex === -1) continue;
+          const key = pair.slice(0, equalsIndex).trim();
+          const value = pair.slice(equalsIndex + 1).trim();
+          if (key && value) {
+            cookies[key] = value;
+          }
+        }
+      }
 
       const params = (req as { params?: Record<string, string> }).params ?? {};
 
@@ -86,11 +80,10 @@ export class Api {
           const [parseError, parsedBody] = await mightThrow(req.json());
 
           if (parseError) {
-            return this.handleError({
-              type: "ValidationError",
-              message: "Invalid JSON body",
-              context: { statusCode: 400 },
-            });
+            return Response.json(
+              { message: "Invalid JSON body" },
+              { status: 400 },
+            );
           }
 
           body = parsedBody;
@@ -105,45 +98,33 @@ export class Api {
         });
       }
 
-      const [bodyError, validatedBody] = await this.validateRequestField(
-        definition.request?.body,
-        body,
-        "body",
-      );
+      // Validate all request fields
+      const fieldsToValidate: Array<
+        [string, unknown, RequestSchema[keyof RequestSchema]]
+      > = [
+        ["body", body, definition.request?.body],
+        ["params", params, definition.request?.params],
+        ["query", query, definition.request?.query],
+        ["headers", headers, definition.request?.headers],
+        ["cookies", cookies, definition.request?.cookies],
+      ];
 
-      if (bodyError) return bodyError;
+      const validated: Record<string, unknown> = {};
 
-      const [paramsError, validatedParams] = await this.validateRequestField(
-        definition.request?.params,
-        params,
-        "params",
-      );
+      for (const [fieldName, data, schema] of fieldsToValidate) {
+        if (!schema) {
+          validated[fieldName] = undefined;
+          continue;
+        }
 
-      if (paramsError) return paramsError;
+        const [error, result] = await validateSchema(schema, data);
 
-      const [queryError, validatedQuery] = await this.validateRequestField(
-        definition.request?.query,
-        query,
-        "query",
-      );
+        if (error) {
+          return Response.json({ message: error.message }, { status: 400 });
+        }
 
-      if (queryError) return queryError;
-
-      const [headersError, validatedHeaders] = await this.validateRequestField(
-        definition.request?.headers,
-        headers,
-        "headers",
-      );
-
-      if (headersError) return headersError;
-
-      const [cookiesError, validatedCookies] = await this.validateRequestField(
-        definition.request?.cookies,
-        cookies,
-        "cookies",
-      );
-
-      if (cookiesError) return cookiesError;
+        validated[fieldName] = result;
+      }
 
       const validateResponseFn = async (status: number, data: unknown) => {
         const responseSchema = definition.response[status];
@@ -154,14 +135,18 @@ export class Api {
       const context = new RequestContext<TRequest, TResponse>(
         req,
         {
-          body: validatedBody as InferInput<TRequest["body"]>,
-          params: validatedParams as InferInput<TRequest["params"]>,
-          query: validatedQuery as InferInput<TRequest["query"]>,
-          headers: validatedHeaders as InferInput<TRequest["headers"]>,
-          cookies: validatedCookies as InferInput<TRequest["cookies"]>,
+          body: validated.body as InferInput<TRequest["body"]>,
+          params: validated.params as InferInput<TRequest["params"]>,
+          query: validated.query as InferInput<TRequest["query"]>,
+          headers: validated.headers as InferInput<TRequest["headers"]>,
+          cookies: validated.cookies as InferInput<TRequest["cookies"]>,
         },
         validateResponseFn,
-        (err) => this.handleError(err),
+        async (err) =>
+          Response.json(
+            { message: err.message },
+            { status: err.context?.statusCode ?? 500 },
+          ),
       );
 
       const handlerResult = definition.handler(context);
@@ -171,7 +156,10 @@ export class Api {
       );
 
       if (handlerError || !response) {
-        return this.handleError(Api.INTERNAL_SERVER_ERROR);
+        return Response.json(
+          { message: Api.INTERNAL_SERVER_ERROR.message },
+          { status: 500 },
+        );
       }
 
       return response;
