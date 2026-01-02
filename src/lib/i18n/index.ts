@@ -8,7 +8,10 @@ export class I18n<
   private currentLocale: keyof TLocales;
   private defaultLocale: TDefaultLocale;
 
-  constructor(config: { defaultLocale: TDefaultLocale; locales: TLocales }) {
+  public constructor(config: {
+    defaultLocale: TDefaultLocale;
+    locales: TLocales;
+  }) {
     this.defaultLocale = config.defaultLocale;
     this.currentLocale = config.defaultLocale;
     this.locales = config.locales;

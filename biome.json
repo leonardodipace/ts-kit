@@ -21,7 +21,26 @@
         "noBannedTypes": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        "noConsole": "warn"
+      },
+      "style": {
+        "noInferrableTypes": "error",
+        "useConst": "error",
+        "useImportType": "error",
+        "useFilenamingConvention": "error",
+        "useConsistentMemberAccessibility": {
+          "level": "error",
+          "options": {
+            "accessibility": "explicit"
+          }
+        },
+        "useNamingConvention": {
+          "level": "error",
+          "options": {
+            "strictCase": false
+          }
+        }
       }
     }
   },

@@ -6,11 +6,11 @@ class MockRedisClient {
   private store = new Map<string, string>();
   private shouldFail = false;
 
-  setShouldFail(value: boolean) {
+  public setShouldFail(value: boolean) {
     this.shouldFail = value;
   }
 
-  async get(key: string) {
+  public async get(key: string) {
     if (this.shouldFail) {
       throw new Error("Redis connection error");
     }
@@ -18,7 +18,7 @@ class MockRedisClient {
     return this.store.get(key);
   }
 
-  async set(key: string, value: string) {
+  public async set(key: string, value: string) {
     if (this.shouldFail) {
       throw new Error("Redis connection error");
     }
@@ -28,7 +28,7 @@ class MockRedisClient {
     return "OK";
   }
 
-  async del(key: string) {
+  public async del(key: string) {
     if (this.shouldFail) {
       throw new Error("Redis connection error");
     }
@@ -44,11 +44,11 @@ class MockRedisClient {
     return 1;
   }
 
-  clear() {
+  public clear() {
     this.store.clear();
   }
 
-  getStore() {
+  public getStore() {
     return this.store;
   }
 }
@@ -137,7 +137,7 @@ describe("Cache", () => {
       });
       await redis.set(
         "nested",
-        JSON.stringify({ user: { name: "Alice", age: 30 } }),
+        JSON.stringify({ user: { name: "Alice", age: 30 } })
       );
       const [, obj] = await objCache.get("nested");
       expect(obj).toEqual({ user: { name: "Alice", age: 30 } });
