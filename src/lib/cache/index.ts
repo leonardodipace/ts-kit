@@ -4,7 +4,7 @@ import type { CacheOptions } from "./types.js";
 export class Cache<T> {
   private options: CacheOptions;
 
-  constructor(options: CacheOptions) {
+  public constructor(options: CacheOptions) {
     this.options = options;
   }
 
@@ -44,8 +44,8 @@ export class Cache<T> {
     if (!this.isTTLValid()) {
       return err(
         "InvalidTTLError",
-        `Unable to save records with ttl equal to ${this.options.ttl}`
-      )
+        `Unable to save records with ttl equal to ${this.options.ttl}`,
+      );
     }
 
     const [setError] = await mightThrow(
