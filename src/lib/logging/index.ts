@@ -1,22 +1,23 @@
 import { appendFileSync } from "node:fs";
-import type { Formatter } from "./formatter.js";
+import { type Formatter } from "./formatter.js";
 import {
   type LogDataType,
   LogLevel,
   type LogLevelType,
+  LogMessageType,
   type ProviderOptions,
 } from "./types.js";
 
 export abstract class AbstractLogger {
-  abstract debug(msg: string): void;
-  abstract info(msg: string): void;
-  abstract warning(msg: string): void;
-  abstract error(msg: string): void;
-  abstract critical(msg: string): void;
+  abstract debug(msg: LogMessageType): void;
+  abstract info(msg: LogMessageType): void;
+  abstract warning(msg: LogMessageType): void;
+  abstract error(msg: LogMessageType): void;
+  abstract critical(msg: LogMessageType): void;
 
   protected createLogData(
     level: LogLevelType,
-    msg: string,
+    msg: LogMessageType,
     prefix: string,
   ): LogDataType {
     return {
@@ -37,27 +38,27 @@ export class Logger extends AbstractLogger {
     this.providers = providers;
   }
 
-  public debug(msg: string) {
+  public debug(msg: LogMessageType) {
     const data = this.createLogData("DEBUG", msg, this.prefix);
     this.run(data);
   }
 
-  public info(msg: string) {
+  public info(msg: LogMessageType) {
     const data = this.createLogData("INFO", msg, this.prefix);
     this.run(data);
   }
 
-  public warning(msg: string) {
+  public warning(msg: LogMessageType) {
     const data = this.createLogData("WARNING", msg, this.prefix);
     this.run(data);
   }
 
-  public error(msg: string) {
+  public error(msg: LogMessageType) {
     const data = this.createLogData("ERROR", msg, this.prefix);
     this.run(data);
   }
 
-  public critical(msg: string) {
+  public critical(msg: LogMessageType) {
     const data = this.createLogData("CRITICAL", msg, this.prefix);
     this.run(data);
   }
@@ -108,7 +109,10 @@ export class FileProvider extends LoggerProvider {
     let { msg } = data;
     if (this.options.formatter) {
       msg = this.options.formatter.format(data);
+    } else if (typeof msg === 'number' || typeof msg === 'object') {
+      msg = msg.toString();
     }
+
     appendFileSync(this.file, msg);
     appendFileSync(this.file, "\n");
   }

@@ -1,4 +1,4 @@
-import type { LogDataType } from "./types.js";
+import type { LogDataType, LogMessageType } from "./types.js";
 
 export interface Formatter<Input = LogDataType, Output = string> {
   format(logData: Input): Output;
@@ -13,7 +13,7 @@ export class BaseFormatter implements Formatter {
   }
 }
 
-export class SimpleJSONFormatter implements Formatter {
+export class JSONFormatter implements Formatter {
   public format(logData: LogDataType): string {
     const data = {
       timestamp: new Date().toISOString(),

@@ -10,10 +10,12 @@ export enum LogLevel {
 
 export type LogLevelType = keyof typeof LogLevel;
 
+export type LogMessageType = string | object | number;
+
 export type LogDataType = {
   prefix: string;
   level: LogLevelType;
-  msg: string;
+  msg: LogMessageType;
 };
 
 export type ProviderOptions = {
