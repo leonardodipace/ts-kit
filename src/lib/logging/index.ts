@@ -70,20 +70,16 @@ export class Logger extends AbstractLogger {
   }
 }
 
-export interface LoggerProvider {
-  execute(data: LogDataType): void;
-}
+export abstract class LoggerProvider {
+  protected options: ProviderOptions;
 
-export class FileProvider implements LoggerProvider {
-  private options: ProviderOptions;
-  private file: string;
-
-  constructor(file: string, options: ProviderOptions) {
-    this.file = file;
+  constructor(options: ProviderOptions) {
     this.options = options;
   }
 
-  protected getLogLevel() {
+  abstract execute(data: LogDataType): void;
+
+  public getLogLevel() {
     if (!this.options.level) {
       return LogLevel.DEBUG;
     }
@@ -93,6 +89,15 @@ export class FileProvider implements LoggerProvider {
 
   public setFormatter(formatter: Formatter) {
     this.options.formatter = formatter;
+  }
+}
+
+export class FileProvider extends LoggerProvider {
+  private file: string;
+
+  constructor(file: string, options: ProviderOptions) {
+    super(options);
+    this.file = file;
   }
 
   public execute(data: LogDataType): void {
@@ -109,23 +114,9 @@ export class FileProvider implements LoggerProvider {
   }
 }
 
-export class ConsoleProvider implements LoggerProvider {
-  private options: ProviderOptions;
-
+export class ConsoleProvider extends LoggerProvider {
   constructor(options: ProviderOptions) {
-    this.options = options;
-  }
-
-  private getLogLevel() {
-    if (!this.options.level) {
-      return LogLevel.DEBUG;
-    }
-
-    return this.options.level;
-  }
-
-  public setFormatter(formatter: Formatter) {
-    this.options.formatter = formatter;
+    super(options);
   }
 
   public execute(data: LogDataType): void {
