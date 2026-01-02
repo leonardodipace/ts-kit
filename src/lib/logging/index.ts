@@ -127,6 +127,8 @@ export class ConsoleProvider extends LoggerProvider {
     let { msg } = data;
     if (this.options.formatter) {
       msg = this.options.formatter.format(data);
+    } else if (typeof msg === "object") {
+      msg = JSON.stringify(msg);
     }
 
     // biome-ignore-start lint/suspicious/noConsole: function used for the correct

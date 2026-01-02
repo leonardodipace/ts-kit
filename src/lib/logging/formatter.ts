@@ -16,8 +16,12 @@ export class BaseFormatter extends Formatter {
   }
 
   public format(logData: LogDataType): string {
-    const { prefix, level, msg } = logData;
+    let { prefix, level, msg } = logData;
     const timestamp = this.dateFmt();
+
+    if (typeof msg === "object") {
+      msg = JSON.stringify(msg);
+    }
 
     return `${timestamp}  [${level}]\t[${prefix}] : ${msg}`;
   }
