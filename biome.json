@@ -28,6 +28,7 @@
         "noInferrableTypes": "error",
         "useConst": "error",
         "useImportType": "error",
+        "useFilenamingConvention": "error",
         "useConsistentMemberAccessibility": {
           "level": "error",
           "options": {
