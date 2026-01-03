@@ -30,42 +30,6 @@ export class Api {
     this.options = options;
   }
 
-  private mergeRequestSchemas(...schemas: (RequestSchema | undefined)[]) {
-    const merged: RequestSchema = {};
-
-    for (const schema of schemas) {
-      if (!schema) continue;
-
-      for (const key of [
-        "body",
-        "params",
-        "query",
-        "headers",
-        "cookies",
-      ] as const) {
-        if (schema[key]) {
-          merged[key] = schema[key];
-        }
-      }
-    }
-
-    return merged;
-  }
-
-  private mergeResponseSchemas(...schemas: (ResponseSchema | undefined)[]) {
-    const merged: ResponseSchema = {};
-
-    for (const schema of schemas) {
-      if (!schema) continue;
-
-      for (const [status, value] of Object.entries(schema)) {
-        merged[Number(status)] = value;
-      }
-    }
-
-    return merged;
-  }
-
   public use(middleware: Middleware) {
     this.globalMiddlewares.push(middleware);
   }
@@ -78,193 +42,49 @@ export class Api {
     const fullPath = this.options.prefix
       ? `${this.options.prefix}${definition.path}`
       : definition.path;
-
     const bunPath = fullPath.replace(/\{(\w+)\}/g, ":$1");
 
-    // Combine global and route-specific middlewares
     const allMiddlewares = [
       ...this.globalMiddlewares,
       ...(definition.middlewares ?? []),
     ];
 
-    // Extract and merge middleware schemas
-    const requestSchemas = allMiddlewares.map((m) => m.definition.request);
-    const responseSchemas = allMiddlewares.map((m) => m.definition.response);
-
     const mergedRequest = this.mergeRequestSchemas(
-      ...requestSchemas,
+      ...allMiddlewares.map((m) => m.definition.request),
       definition.request,
     );
-
     const mergedResponse = this.mergeResponseSchemas(
-      ...responseSchemas,
+      ...allMiddlewares.map((m) => m.definition.response),
       definition.response,
     );
 
     const wrappedHandler = async (req: Request) => {
-      const url = new URL(req.url);
+      const parseResult = await this.parseRequest(req, mergedRequest);
+      if (parseResult instanceof Response) return parseResult;
 
-      // Parse query string
-      const query: Record<string, string | string[]> = {};
-      for (const [key, value] of url.searchParams.entries()) {
-        const existing = query[key];
-        if (Array.isArray(existing)) {
-          existing.push(value);
-        } else if (existing) {
-          query[key] = [existing, value];
-        } else {
-          query[key] = value;
-        }
-      }
+      const validateResult = await this.validateRequestFields(
+        parseResult,
+        mergedRequest,
+      );
+      if (validateResult instanceof Response) return validateResult;
 
-      // Parse cookies
-      const cookieHeader = req.headers.get("cookie");
-      const cookies: Record<string, string> = {};
-      if (cookieHeader) {
-        for (const pair of cookieHeader.split(";")) {
-          const equalsIndex = pair.indexOf("=");
-          if (equalsIndex === -1) continue;
-          const key = pair.slice(0, equalsIndex).trim();
-          const value = pair.slice(equalsIndex + 1).trim();
-          if (key && value) {
-            cookies[key] = value;
-          }
-        }
-      }
-
-      const params = (req as { params?: Record<string, string> }).params ?? {};
-
-      let body: unknown;
-
-      if (mergedRequest.body) {
-        const contentType = req.headers.get("content-type") ?? "";
-
-        if (contentType.includes("application/json")) {
-          const [parseError, parsedBody] = await mightThrow(req.json());
-
-          if (parseError) {
-            return Response.json(
-              { message: "Invalid JSON body" },
-              { status: 400 },
-            );
-          }
-
-          body = parsedBody;
-        }
-      }
-
-      const headers: Record<string, string> = {};
-
-      if (mergedRequest.headers) {
-        req.headers.forEach((value, key) => {
-          headers[key] = value;
-        });
-      }
-
-      // Validate all request fields using merged schemas
-      const fieldsToValidate: Array<
-        [string, unknown, RequestSchema[keyof RequestSchema]]
-      > = [
-        ["body", body, mergedRequest.body],
-        ["params", params, mergedRequest.params],
-        ["query", query, mergedRequest.query],
-        ["headers", headers, mergedRequest.headers],
-        ["cookies", cookies, mergedRequest.cookies],
-      ];
-
-      const validated: Record<string, unknown> = {};
-
-      for (const [fieldName, data, schema] of fieldsToValidate) {
-        if (!schema) {
-          validated[fieldName] = undefined;
-          continue;
-        }
-
-        const [error, result] = await validateSchema(schema, data);
-
-        if (error) {
-          return Response.json({ message: error.message }, { status: 400 });
-        }
-
-        validated[fieldName] = result;
-      }
-
-      const validateResponseFn = async (status: number, data: unknown) => {
-        const responseSchema = mergedResponse[status];
-
-        return validateSchema(responseSchema, data);
-      };
-
-      const baseContext = new RequestContext<
-        typeof mergedRequest,
-        typeof mergedResponse
-      >(
+      const baseContext = this.createBaseContext(
         req,
-        {
-          body: validated.body as InferInput<(typeof mergedRequest)["body"]>,
-          params: validated.params as InferInput<
-            (typeof mergedRequest)["params"]
-          >,
-          query: validated.query as InferInput<(typeof mergedRequest)["query"]>,
-          headers: validated.headers as InferInput<
-            (typeof mergedRequest)["headers"]
-          >,
-          cookies: validated.cookies as InferInput<
-            (typeof mergedRequest)["cookies"]
-          >,
-        },
-        validateResponseFn,
-        async (err) =>
-          Response.json(
-            { message: err.message },
-            { status: err.context?.statusCode ?? 500 },
-          ),
+        validateResult,
+        mergedRequest,
+        mergedResponse,
       );
 
-      // Execute middlewares in order
-      const middlewareData: Record<string, unknown> = {};
-
-      for (const middleware of allMiddlewares) {
-        const [middlewareError, result] = await mightThrow(
-          Promise.resolve(middleware.definition.handler(baseContext)),
-        );
-
-        if (middlewareError) {
-          return Response.json(
-            { message: Api.INTERNAL_SERVER_ERROR.message },
-            { status: 500 },
-          );
-        }
-
-        // Check if middleware returned early (Response)
-        if (result instanceof Response) {
-          return result;
-        }
-
-        // Collect context data
-        Object.assign(middlewareData, result);
-      }
-
-      // Create extended context with middleware data
-      const extendedContext = Object.assign(baseContext, {
-        get: <K extends string>(key: K) => middlewareData[key],
-      });
-
-      // @ts-expect-error - Runtime context extension; middleware data is validated at runtime
-      const handlerResult = definition.handler(extendedContext);
-
-      const [handlerError, response] = await mightThrow(
-        Promise.resolve(handlerResult),
+      const middlewareResult = await this.executeMiddlewares(
+        allMiddlewares,
+        baseContext,
       );
+      if (middlewareResult instanceof Response) return middlewareResult;
 
-      if (handlerError || !response) {
-        return Response.json(
-          { message: Api.INTERNAL_SERVER_ERROR.message },
-          { status: 500 },
-        );
-      }
+      const extendedContext = this.extendContext(baseContext, middlewareResult);
 
-      return response;
+      // @ts-expect-error - Extended context type is correct at runtime
+      return this.executeHandler(definition.handler, extendedContext);
     };
 
     this.routes.push({
@@ -319,6 +139,229 @@ export class Api {
       this.server.stop();
       this.server = null;
     }
+  }
+
+  private parseQueryString(url: URL) {
+    const query: Record<string, string | string[]> = {};
+    for (const [key, value] of url.searchParams.entries()) {
+      const existing = query[key];
+      if (Array.isArray(existing)) {
+        existing.push(value);
+      } else if (existing) {
+        query[key] = [existing, value];
+      } else {
+        query[key] = value;
+      }
+    }
+    return query;
+  }
+
+  private parseCookies(cookieHeader: string | null) {
+    const cookies: Record<string, string> = {};
+    if (!cookieHeader) return cookies;
+
+    for (const pair of cookieHeader.split(";")) {
+      const equalsIndex = pair.indexOf("=");
+      if (equalsIndex === -1) continue;
+      const key = pair.slice(0, equalsIndex).trim();
+      const value = pair.slice(equalsIndex + 1).trim();
+      if (key && value) cookies[key] = value;
+    }
+    return cookies;
+  }
+
+  private async parseBody(req: Request, hasBodySchema: boolean) {
+    if (!hasBodySchema) return [null, undefined] as const;
+
+    const contentType = req.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      return [null, undefined] as const;
+    }
+
+    const [parseError, parsedBody] = await mightThrow(req.json());
+    if (parseError) {
+      return [
+        Response.json({ message: "Invalid JSON body" }, { status: 400 }),
+        null,
+      ] as const;
+    }
+
+    return [null, parsedBody] as const;
+  }
+
+  private extractHeaders(req: Request, hasHeaderSchema: boolean) {
+    if (!hasHeaderSchema) return {};
+
+    const headers: Record<string, string> = {};
+    req.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  private async parseRequest(req: Request, schema: RequestSchema) {
+    const url = new URL(req.url);
+    const query = this.parseQueryString(url);
+    const cookies = this.parseCookies(req.headers.get("cookie"));
+    const params =
+      (req as Request & { params?: Record<string, string> }).params ?? {};
+    const headers = this.extractHeaders(req, !!schema.headers);
+
+    const [bodyError, body] = await this.parseBody(req, !!schema.body);
+    if (bodyError) return bodyError;
+
+    return { body, params, query, headers, cookies };
+  }
+
+  private async validateRequestFields(
+    data: {
+      body: unknown;
+      params: Record<string, string>;
+      query: Record<string, string | string[]>;
+      headers: Record<string, string>;
+      cookies: Record<string, string>;
+    },
+    schema: RequestSchema,
+  ) {
+    const fieldsToValidate = [
+      ["body", data.body, schema.body],
+      ["params", data.params, schema.params],
+      ["query", data.query, schema.query],
+      ["headers", data.headers, schema.headers],
+      ["cookies", data.cookies, schema.cookies],
+    ] as const;
+
+    for (const [_fieldName, fieldData, fieldSchema] of fieldsToValidate) {
+      if (!fieldSchema) continue;
+
+      const [error] = await validateSchema(fieldSchema, fieldData);
+      if (error) {
+        return Response.json({ message: error.message }, { status: 400 });
+      }
+    }
+
+    return data;
+  }
+
+  private createBaseContext<
+    TRequest extends RequestSchema,
+    TResponse extends ResponseSchema,
+  >(
+    req: Request,
+    validatedData: {
+      body: unknown;
+      params: Record<string, string>;
+      query: Record<string, string | string[]>;
+      headers: Record<string, string>;
+      cookies: Record<string, string>;
+    },
+    _requestSchema: TRequest,
+    responseSchema: TResponse,
+  ) {
+    const validateResponseFn = async (status: number, data: unknown) => {
+      const schema = responseSchema[status];
+      return validateSchema(schema, data);
+    };
+
+    const handleErrorFn = async (err: ApiError) =>
+      Response.json(
+        { message: err.message },
+        { status: err.context?.statusCode ?? 500 },
+      );
+
+    return new RequestContext<TRequest, TResponse>(
+      req,
+      {
+        body: validatedData.body as InferInput<TRequest["body"]>,
+        params: validatedData.params as InferInput<TRequest["params"]>,
+        query: validatedData.query as InferInput<TRequest["query"]>,
+        headers: validatedData.headers as InferInput<TRequest["headers"]>,
+        cookies: validatedData.cookies as InferInput<TRequest["cookies"]>,
+      },
+      validateResponseFn,
+      handleErrorFn,
+    );
+  }
+
+  private async executeMiddlewares(
+    middlewares: Middleware[],
+    context: RequestContext,
+  ) {
+    const data: Record<string, unknown> = {};
+
+    for (const middleware of middlewares) {
+      const [error, result] = await mightThrow(
+        Promise.resolve(middleware.definition.handler(context)),
+      );
+
+      if (error) {
+        return Response.json(
+          { message: Api.INTERNAL_SERVER_ERROR.message },
+          { status: 500 },
+        );
+      }
+
+      if (result instanceof Response) {
+        return result;
+      }
+
+      Object.assign(data, result);
+    }
+
+    return data;
+  }
+
+  private extendContext(
+    baseContext: RequestContext,
+    middlewareData: Record<string, unknown>,
+  ) {
+    return Object.assign(baseContext, {
+      get: <K extends string>(key: K) => middlewareData[key],
+    });
+  }
+
+  private async executeHandler<T>(
+    handler: (context: T) => unknown,
+    context: T,
+  ) {
+    const [error, response] = await mightThrow(
+      Promise.resolve(handler(context)),
+    );
+
+    if (error || !response) {
+      return Response.json(
+        { message: Api.INTERNAL_SERVER_ERROR.message },
+        { status: 500 },
+      );
+    }
+
+    return response as Response;
+  }
+
+  private mergeRequestSchemas(...schemas: (RequestSchema | undefined)[]) {
+    const merged: RequestSchema = {};
+
+    for (const schema of schemas) {
+      if (!schema) continue;
+      if (schema.body) merged.body = schema.body;
+      if (schema.params) merged.params = schema.params;
+      if (schema.query) merged.query = schema.query;
+      if (schema.headers) merged.headers = schema.headers;
+      if (schema.cookies) merged.cookies = schema.cookies;
+    }
+
+    return merged;
+  }
+
+  private mergeResponseSchemas(...schemas: (ResponseSchema | undefined)[]) {
+    const merged: ResponseSchema = {};
+
+    for (const schema of schemas) {
+      if (!schema) continue;
+      Object.assign(merged, schema);
+    }
+
+    return merged;
   }
 }
 
