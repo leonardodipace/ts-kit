@@ -510,4 +510,332 @@ describe("Middleware", () => {
     });
     expect(res2.status).toBe(200);
   });
+
+  test("should validate per-middleware and execute handlers in order", async () => {
+    let simpleExecuted = false;
+    let complexExecuted = false;
+
+    const simple = new Middleware({
+      handler: () => {
+        simpleExecuted = true;
+        return { simple: true };
+      },
+    });
+
+    const complex = new Middleware({
+      request: {
+        headers: z.object({
+          authorization: z.string().startsWith("Bearer "),
+        }),
+      },
+      handler: (c) => {
+        complexExecuted = true;
+        return { token: c.request.headers.authorization };
+      },
+    });
+
+    const api = new Api();
+    api.defineRoute({
+      path: "/per-middleware",
+      method: "GET",
+      middlewares: [simple, complex] as const,
+      response: {
+        200: z.object({ status: z.string() }),
+      },
+      handler: (c) => {
+        return c.json(200, { status: "ok" });
+      },
+    });
+
+    const { baseUrl } = createTestServer(api);
+
+    // Without Authorization header - simple should execute, complex should fail validation
+    simpleExecuted = false;
+    complexExecuted = false;
+
+    const res1 = await fetch(`${baseUrl}/per-middleware`);
+    expect(res1.status).toBe(400);
+    expect(simpleExecuted).toBe(true); // First middleware executed
+    expect(complexExecuted).toBe(false); // Second middleware validation failed
+
+    // With Authorization header - both should execute
+    simpleExecuted = false;
+    complexExecuted = false;
+
+    const res2 = await fetch(`${baseUrl}/per-middleware`, {
+      headers: { authorization: "Bearer my-token" },
+    });
+    expect(res2.status).toBe(200);
+    expect(simpleExecuted).toBe(true); // First middleware executed
+    expect(complexExecuted).toBe(true); // Second middleware executed
+  });
+
+  test("should validate each middleware schema independently before handler execution", async () => {
+    const executionLog: string[] = [];
+
+    const middleware1 = new Middleware({
+      handler: () => {
+        executionLog.push("middleware1");
+        return {};
+      },
+    });
+
+    const middleware2 = new Middleware({
+      request: {
+        headers: z.object({
+          "x-api-key": z.string(),
+        }),
+      },
+      handler: () => {
+        executionLog.push("middleware2");
+        return {};
+      },
+    });
+
+    const middleware3 = new Middleware({
+      handler: () => {
+        executionLog.push("middleware3");
+        return {};
+      },
+    });
+
+    const api = new Api();
+    api.defineRoute({
+      path: "/independent-validation",
+      method: "GET",
+      middlewares: [middleware1, middleware2, middleware3] as const,
+      response: {
+        200: z.object({ message: z.string() }),
+      },
+      handler: (c) => {
+        executionLog.push("handler");
+        return c.json(200, { message: "ok" });
+      },
+    });
+
+    const { baseUrl } = createTestServer(api);
+
+    // Without x-api-key header
+    executionLog.length = 0;
+    const res1 = await fetch(`${baseUrl}/independent-validation`);
+    expect(res1.status).toBe(400);
+    expect(executionLog).toEqual(["middleware1"]); // Only first middleware executed
+
+    // With x-api-key header
+    executionLog.length = 0;
+    const res2 = await fetch(`${baseUrl}/independent-validation`, {
+      headers: { "x-api-key": "secret" },
+    });
+    expect(res2.status).toBe(200);
+    expect(executionLog).toEqual([
+      "middleware1",
+      "middleware2",
+      "middleware3",
+      "handler",
+    ]); // All executed
+  });
+
+  test("should validate multiple request fields per middleware", async () => {
+    let middleware1Executed = false;
+    let middleware2Executed = false;
+
+    const middleware1 = new Middleware({
+      request: {
+        headers: z.object({
+          "x-tenant-id": z.string(),
+        }),
+      },
+      handler: () => {
+        middleware1Executed = true;
+        return { tenant: "acme" };
+      },
+    });
+
+    const middleware2 = new Middleware({
+      request: {
+        headers: z.object({
+          authorization: z.string(),
+        }),
+        query: z.object({
+          version: z.string(),
+        }),
+      },
+      handler: () => {
+        middleware2Executed = true;
+        return { authenticated: true };
+      },
+    });
+
+    const api = new Api();
+    api.defineRoute({
+      path: "/multi-field",
+      method: "GET",
+      middlewares: [middleware1, middleware2] as const,
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+      handler: (c) => {
+        return c.json(200, { success: true });
+      },
+    });
+
+    const { baseUrl } = createTestServer(api);
+
+    // Missing x-tenant-id
+    middleware1Executed = false;
+    middleware2Executed = false;
+    const res1 = await fetch(`${baseUrl}/multi-field`);
+    expect(res1.status).toBe(400);
+    expect(middleware1Executed).toBe(false);
+    expect(middleware2Executed).toBe(false);
+
+    // Has x-tenant-id but missing authorization and version
+    middleware1Executed = false;
+    middleware2Executed = false;
+    const res2 = await fetch(`${baseUrl}/multi-field`, {
+      headers: { "x-tenant-id": "123" },
+    });
+    expect(res2.status).toBe(400);
+    expect(middleware1Executed).toBe(true); // First middleware executed
+    expect(middleware2Executed).toBe(false); // Second middleware validation failed
+
+    // Has all required fields
+    middleware1Executed = false;
+    middleware2Executed = false;
+    const res3 = await fetch(`${baseUrl}/multi-field?version=v1`, {
+      headers: {
+        "x-tenant-id": "123",
+        authorization: "Bearer token",
+      },
+    });
+    expect(res3.status).toBe(200);
+    expect(middleware1Executed).toBe(true);
+    expect(middleware2Executed).toBe(true);
+  });
+
+  test("should allow middleware to return error response after validation passes", async () => {
+    let validationPassed = false;
+
+    const authMiddleware = new Middleware({
+      request: {
+        headers: z.object({
+          authorization: z.string(),
+        }),
+      },
+      response: {
+        403: z.object({ error: z.string() }),
+      },
+      handler: (c) => {
+        validationPassed = true; // Schema validation passed
+        const token = c.request.headers.authorization;
+
+        // Business logic validation
+        if (token !== "Bearer valid-token") {
+          return c.json(403, { error: "Invalid token" });
+        }
+
+        return { authenticated: true };
+      },
+    });
+
+    const api = new Api();
+    api.defineRoute({
+      path: "/business-validation",
+      method: "GET",
+      middlewares: [authMiddleware] as const,
+      response: {
+        200: z.object({ message: z.string() }),
+      },
+      handler: (c) => {
+        return c.json(200, { message: "Success" });
+      },
+    });
+
+    const { baseUrl } = createTestServer(api);
+
+    // Schema validation fails (no header)
+    validationPassed = false;
+    const res1 = await fetch(`${baseUrl}/business-validation`);
+    expect(res1.status).toBe(400);
+    expect(validationPassed).toBe(false);
+
+    // Schema validation passes, business logic fails
+    validationPassed = false;
+    const res2 = await fetch(`${baseUrl}/business-validation`, {
+      headers: { authorization: "Bearer invalid-token" },
+    });
+    expect(res2.status).toBe(403);
+    expect(validationPassed).toBe(true);
+
+    // Both validations pass
+    validationPassed = false;
+    const res3 = await fetch(`${baseUrl}/business-validation`, {
+      headers: { authorization: "Bearer valid-token" },
+    });
+    expect(res3.status).toBe(200);
+    expect(validationPassed).toBe(true);
+  });
+
+  test("should validate body schema per middleware", async () => {
+    let middleware1Executed = false;
+    let middleware2Executed = false;
+
+    const middleware1 = new Middleware({
+      handler: () => {
+        middleware1Executed = true;
+        return {};
+      },
+    });
+
+    const middleware2 = new Middleware({
+      request: {
+        body: z.object({
+          email: z.string().email(),
+        }),
+      },
+      handler: () => {
+        middleware2Executed = true;
+        return {};
+      },
+    });
+
+    const api = new Api();
+    api.defineRoute({
+      path: "/body-validation",
+      method: "POST",
+      middlewares: [middleware1, middleware2] as const,
+      response: {
+        200: z.object({ success: z.boolean() }),
+      },
+      handler: (c) => {
+        return c.json(200, { success: true });
+      },
+    });
+
+    const { baseUrl } = createTestServer(api);
+
+    // Invalid email
+    middleware1Executed = false;
+    middleware2Executed = false;
+    const res1 = await fetch(`${baseUrl}/body-validation`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "invalid" }),
+    });
+    expect(res1.status).toBe(400);
+    expect(middleware1Executed).toBe(true); // First middleware executed
+    expect(middleware2Executed).toBe(false); // Second middleware validation failed
+
+    // Valid email
+    middleware1Executed = false;
+    middleware2Executed = false;
+    const res2 = await fetch(`${baseUrl}/body-validation`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "user@example.com" }),
+    });
+    expect(res2.status).toBe(200);
+    expect(middleware1Executed).toBe(true);
+    expect(middleware2Executed).toBe(true);
+  });
 });
