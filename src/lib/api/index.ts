@@ -62,9 +62,10 @@ export class Api {
       const parseResult = await this.parseRequest(req, mergedRequest);
       if (parseResult instanceof Response) return parseResult;
 
+      // Validate only the route's own request schema upfront
       const validateResult = await this.validateRequestFields(
         parseResult,
-        mergedRequest,
+        definition.request ?? {},
       );
       if (validateResult instanceof Response) return validateResult;
 
@@ -75,9 +76,11 @@ export class Api {
         mergedResponse,
       );
 
+      // Execute middlewares with per-middleware validation
       const middlewareResult = await this.executeMiddlewares(
         allMiddlewares,
         baseContext,
+        parseResult,
       );
       if (middlewareResult instanceof Response) return middlewareResult;
 
@@ -286,10 +289,26 @@ export class Api {
   private async executeMiddlewares(
     middlewares: Middleware[],
     context: RequestContext,
+    parsedData: {
+      body: unknown;
+      params: Record<string, string>;
+      query: Record<string, string | string[]>;
+      headers: Record<string, string>;
+      cookies: Record<string, string>;
+    },
   ) {
     const data: Record<string, unknown> = {};
 
     for (const middleware of middlewares) {
+      // Validate middleware's request schema before executing its handler
+      if (middleware.definition.request) {
+        const validateResult = await this.validateRequestFields(
+          parsedData,
+          middleware.definition.request,
+        );
+        if (validateResult instanceof Response) return validateResult;
+      }
+
       const [error, result] = await mightThrow(
         Promise.resolve(middleware.definition.handler(context)),
       );
