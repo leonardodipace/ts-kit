@@ -33,9 +33,15 @@ export class JSONFormatter extends Formatter {
   }
 
   public format(logData: LogDataType): string {
+    let { prefix, level, msg } = logData;
+    const timestamp = this.dateFmt();
+    const levelType = level.toUpperCase();
+
     const data = {
-      timestamp: this.dateFmt(),
-      ...logData,
+      timestamp,
+      level: levelType,
+      prefix,
+      msg
     };
     return JSON.stringify(data);
   }
