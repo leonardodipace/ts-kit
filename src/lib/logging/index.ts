@@ -109,11 +109,11 @@ export class FileProvider extends LoggerProvider {
     let { msg } = data;
     if (this.options.formatter) {
       msg = this.options.formatter.format(data);
-    } else if (typeof msg === "number" || typeof msg === "object") {
+    } else if (typeof msg === "object") {
       msg = JSON.stringify(msg);
     }
 
-    appendFileSync(this.file, msg);
+    appendFileSync(this.file, `${msg}`);
     appendFileSync(this.file, "\n");
   }
 }
